@@ -122,7 +122,7 @@ from src.utils import *
 models = []
 for i in range(5):
     models.append({
-            'name': f'F2S_WARM_START_200_{i}_Nature',
+            'name': f'F2S_WARM_START_200_{i}_Nature_Corrected',
             'learning_rate': LEARNING_RATE,
             'weight_decay':  WEIGHT_DECAY,
             'model': F2S(
@@ -205,11 +205,11 @@ for model_specs in models:
     mol_bias = pd.DataFrame({'idx': indices, 'bias': mol_bias}).set_index('idx').sort_index()
     mol_bias.to_csv(f"saved_models/{model_name}/mol_bias.csv")
     
-    side_bias    = model.side_bias.cpu().detach().numpy()
-    side_bias_df = pd.DataFrame({'idx': range(len(side_bias)), 'bias': side_bias}).set_index('idx').sort_index()
-    side_bias_df.to_csv(f"saved_models/{model_name}/side_bias.csv")
+    # side_bias    = model.side_bias.cpu().detach().numpy()
+    # side_bias_df = pd.DataFrame({'idx': range(len(side_bias)), 'bias': side_bias}).set_index('idx').sort_index()
+    # side_bias_df.to_csv(f"saved_models/{model_name}/side_bias.csv")
 
-    mol_corr, se_corr = eval_correlations(mol_bias['bias'].values, side_bias_df['bias'].values, R_train.cpu().numpy())
+    # mol_corr, se_corr = eval_correlations(mol_bias['bias'].values, side_bias_df['bias'].values, R_train.cpu().numpy())
 
     # Save model specs
     specs = {
@@ -221,8 +221,8 @@ for model_specs in models:
         'rmse_final': eval_rmse(val_preds, R_val),
         'auroc_final_R': eval_auroc(val_preds, R_train, R_val),
         'auprc_final_R': eval_auprc(val_preds, R_train, R_val),
-        'mol_corr': mol_corr,
-        'se_corr': se_corr,
+        # 'mol_corr': mol_corr,
+        # 'se_corr': se_corr,
         'PCA_dim': pca_dim,
         'retained_var': total_retained_variance,
         'global_bias': model.global_bias.cpu().detach().numpy(),
@@ -232,52 +232,52 @@ for model_specs in models:
     
     save_specs(model_name, specs)
     
-    R_train = pd.read_csv(DATA_FOLDER + '/R_train.csv', header=None).values
-    R_val   = pd.read_csv(DATA_FOLDER + '/R_val.csv',   header=None).values
-    R_test  = pd.read_csv(DATA_FOLDER + '/R_test.csv',  header=None).values
+    # R_train = pd.read_csv(DATA_FOLDER + '/R_train.csv', header=None).values
+    # R_val   = pd.read_csv(DATA_FOLDER + '/R_val.csv',   header=None).values
+    # R_test  = pd.read_csv(DATA_FOLDER + '/R_test.csv',  header=None).values
 
-    R_train = torch.Tensor(R_train).to(device)
-    R_val   = torch.Tensor(R_val).to(device)
-    R_test  = torch.Tensor(R_test).to(device)
-    R_train = R_train + R_val + R_test
+    # R_train = torch.Tensor(R_train).to(device)
+    # R_val   = torch.Tensor(R_val).to(device)
+    # R_test  = torch.Tensor(R_test).to(device)
+    # R_train = R_train + R_val + R_test
 
-    # Build loaders
-    mol_graphs   = extract_features(smiles_train)
-    train_loader = build_dataloader(mol_graphs, BATCH_SIZE)
+    # # Build loaders
+    # mol_graphs   = extract_features(smiles_train)
+    # train_loader = build_dataloader(mol_graphs, BATCH_SIZE)
 
-    R_preds = torch.zeros_like(R_train)
-    b_d     = torch.zeros(((len(smiles_list), 1)))
-    W       = torch.zeros((len(smiles_list), model.molecule_embedding.out_channels))
-    H       = torch.zeros((model.molecule_embedding.out_channels, 994))
+    # R_preds = torch.zeros_like(R_train)
+    # b_d     = torch.zeros(((len(smiles_list), 1)))
+    # W       = torch.zeros((len(smiles_list), model.molecule_embedding.out_channels))
+    # H       = torch.zeros((model.molecule_embedding.out_channels, 994))
     
-    epoch_train_loss = 0
-    model.eval()
-    with torch.no_grad():
-        for batch_data in train_loader:
-            # Forward pass
-            y_pred, idx, mol_embed, side_embed = model(batch_data, send_embs=True)  # [num_drugs, num_side_effects]
+    # epoch_train_loss = 0
+    # model.eval()
+    # with torch.no_grad():
+    #     for batch_data in train_loader:
+    #         # Forward pass
+    #         y_pred, idx, mol_embed, side_embed = model(batch_data, send_embs=True)  # [num_drugs, num_side_effects]
             
-            # Calculate loss
-            y_true = R_train[idx, :]
-            R_preds[idx, :] = y_pred
-            b_d[idx, :] = model.mol_bias
+    #         # Calculate loss
+    #         y_true = R_train[idx, :]
+    #         R_preds[idx, :] = y_pred
+    #         b_d[idx, :] = model.mol_bias
 
-            loss = criterion(y_pred, y_true, mol_embed, side_embed)
-            epoch_train_loss += loss.item()
+    #         loss = criterion(y_pred, y_true, mol_embed, side_embed)
+    #         epoch_train_loss += loss.item()
 
-            W[idx, :] = mol_embed
-            H = side_embed
+    #         W[idx, :] = mol_embed
+    #         H = side_embed
     
 
-    MODEL_FOLDER = '.\\saved_models'
-    folder_path = os.path.join(MODEL_FOLDER, model_name)
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
+    # MODEL_FOLDER = '.\\saved_models'
+    # folder_path = os.path.join(MODEL_FOLDER, model_name)
+    # if not os.path.exists(folder_path):
+    #     os.makedirs(folder_path)
     
-    torch.save(W, os.path.join(folder_path, 'W.pt'))
-    torch.save(H, os.path.join(folder_path, 'H.pt'))
-    torch.save(R_preds, os.path.join(folder_path, 'R_preds.pt'))
-    torch.save(model.side_bias, os.path.join(folder_path, 'side_bias.pt'))
-    torch.save(b_d, os.path.join(folder_path, 'mol_bias.pt'))
+    # torch.save(W, os.path.join(folder_path, 'W.pt'))
+    # torch.save(H, os.path.join(folder_path, 'H.pt'))
+    # torch.save(R_preds, os.path.join(folder_path, 'R_preds.pt'))
+    # torch.save(model.side_bias, os.path.join(folder_path, 'side_bias.pt'))
+    # torch.save(b_d, os.path.join(folder_path, 'mol_bias.pt'))
 
     print('\n'*3 + '='*5 + f" Model {model_name} training complete! " + '='*5 + '\n'*3)
