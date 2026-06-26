@@ -232,20 +232,17 @@ for model_specs in models:
     
     save_specs(model_name, specs)
     
-    R_train = pd.read_csv(DATA_FOLDER + '/R_train.csv', header=None).values
-    R_val   = pd.read_csv(DATA_FOLDER + '/R_val.csv',   header=None).values
-    R_test  = pd.read_csv(DATA_FOLDER + '/R_test.csv',  header=None).values
+    R_full_train = pd.read_csv(DATA_FOLDER + '/R_train.csv', header=None).values
+    R_full_val   = pd.read_csv(DATA_FOLDER + '/R_val.csv',   header=None).values
+    R_full_test  = pd.read_csv(DATA_FOLDER + '/R_test.csv',  header=None).values
 
-    R_train = torch.Tensor(R_train).to(device)
-    R_val   = torch.Tensor(R_val).to(device)
-    R_test  = torch.Tensor(R_test).to(device)
-    R_train = R_train + R_val + R_test
+    R_full = (torch.Tensor(R_full_train) + torch.Tensor(R_full_val) + torch.Tensor(R_full_test)).to(device)
 
     # Build loaders
     mol_graphs   = extract_features(smiles_train)
     train_loader = build_dataloader(mol_graphs, BATCH_SIZE)
 
-    R_preds = torch.zeros_like(R_train)
+    R_preds = torch.zeros_like(R_full)
     b_d     = torch.zeros(((len(smiles_list), 1)))
     W       = torch.zeros((len(smiles_list), model.molecule_embedding.out_channels))
     H       = torch.zeros((model.molecule_embedding.out_channels, 994))
@@ -258,7 +255,7 @@ for model_specs in models:
             y_pred, idx, mol_embed, side_embed = model(batch_data, send_embs=True)  # [num_drugs, num_side_effects]
             
             # Calculate loss
-            y_true = R_train[idx, :]
+            y_true = R_full[idx, :]
             R_preds[idx, :] = y_pred
             b_d[idx, :] = model.mol_bias
 
